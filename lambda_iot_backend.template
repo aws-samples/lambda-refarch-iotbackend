@@ -1,0 +1,404 @@
+
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+
+    "Description" : "Template to set up Kinesis stream, Lambda functions, S3 bucket, DynamoDB table and related IAM roles for example Lambda Internet of Things Backend Reference Architecture. PLEASE NOTE: The CloudFormation Stack Name must be all lowercase as it is used as part of the S3 bucket name. Otherwise the stack creation will fail.",
+
+    "Parameters" : {
+        "LambdaS3Bucket" : {
+            "Type" : "String",
+            "Description" : "Name of S3 bucket where Lambda function packages are stored.",
+            "Default" : "awslambda-reference-architectures"
+        },
+        "LambdaAPIS3Key" : {
+            "Type" : "String",
+            "Default" : "/iot-backend/iot_api.zip",
+            "Description" : "Name of S3 key for Zip with IoT API Lambda function package."
+        },
+        "LambdaDDBEventProcessorS3Key" : {
+            "Type" : "String",
+            "Default" : "/iot-backend/iot_ddb_cw_eventprocessor.zip",
+            "Description" : "Name of S3 key for Zip with IoT DynamoDB and CloudWatch Event Processor Lambda function package."
+        },
+        "LambdaS3EventProcessorS3Key" : {
+            "Type" : "String",
+            "Default" : "/iot-backend/iot_s3_eventprocessor.zip",
+            "Description" : "Name of S3 key for Zip with IoT S3 Event Processor Lambda function package."
+        },
+        "LambdaAPIHandler" : {
+            "Type" : "String",
+            "Default" : "iot_api.handler",
+            "Description" : "Name of handler for IoT API Lambda function."
+        },
+        "LambdaDDBEventProcessorHandler" : {
+            "Type" : "String",
+            "Default" : "iot_ddb_cw_eventprocessor.handler",
+            "Description" : "Name of handler for IoT DynamoDB and CloudWatch Event Processor Lambda function."
+        },
+        "LambdaS3EventProcessorHandler" : {
+            "Type" : "String",
+            "Default" : "iot_s3_eventprocessor.handler",
+            "Description" : "Name of handler for IoT S3 Event Processor Lambda function."
+        }
+    },
+
+    "Resources" : {
+        "iotclient" : {
+            "Type" : "AWS::IAM::User"
+        },
+
+        "IoTClientPolicy" : {
+            "Type" : "AWS::IAM::Policy",
+            "Properties" : {
+                "PolicyName" : "IotClientPolicy",
+                "PolicyDocument" : {
+                    "Statement" : [{
+                        "Effect" : "Allow",
+                        "Action" : [
+                            "lambda:InvokeFunction"
+                        ],
+                        "Resource" : {"Fn::GetAtt" : ["IoTAPI", "Arn"] }
+                    }, {
+                        "Effect" : "Allow",
+                        "Action" : [
+                            "kinesis:Put*"
+                        ],
+                        "Resource" : { "Fn::Join" : [ "", ["arn:aws:kinesis:", {"Ref" : "AWS::Region"} , ":", {"Ref" : "AWS::AccountId"}, ":stream/", {"Ref" : "IoTEventStream"}]]}
+                    }]
+                },
+                "Users" : [{ "Ref" : "iotclient" }]
+            }
+        },
+
+        "ClientKeys" : {
+            "Type" : "AWS::IAM::AccessKey",
+            "Properties" : {
+                "UserName" : { "Ref" : "iotclient" }
+            }
+        },
+
+        "IoTEventStream" : {
+            "Type" : "AWS::Kinesis::Stream",
+            "Properties" : {
+                "ShardCount" : 1
+            }
+        },
+
+        "IotArchiveS3Bucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "BucketName": {"Fn::Join" : ["", [{"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref": "AWS::AccountId" }]]}
+            }
+        },
+
+        "IoTAPI" : {
+            "Type" : "AWS::Lambda::Function",
+            "Properties" : {
+                "Description" : "IoT API Function",
+                "Handler" : {"Ref" : "LambdaAPIHandler"},
+                "MemorySize" : 128,
+                "Role" : {"Fn::GetAtt" : ["IoTAPIExecutionRole", "Arn"] },
+                "Timeout" : 10,
+                "Runtime" : "nodejs",
+                "Code" : {
+                    "S3Bucket" : { "Ref" : "LambdaS3Bucket" },
+                    "S3Key" : { "Ref" : "LambdaAPIS3Key" }
+                }
+            }
+        },
+
+        "IoTAPIExecutionRole" : {
+            "Type" : "AWS::IAM::Role",
+            "Properties" : {
+                "AssumeRolePolicyDocument" : {
+                    "Version" : "2012-10-17",
+                    "Statement" : [ {
+                        "Effect" : "Allow",
+                        "Principal" : {
+                            "Service" : [ "lambda.amazonaws.com" ]
+                        },
+                        "Action" : [ "sts:AssumeRole" ]
+                    } ]
+                },
+                "Path" : "/",
+                "Policies" : [ {
+                    "PolicyName" : "IoTAPIExecutionPolicy",
+                    "PolicyDocument" : {
+                        "Version" : "2012-10-17",
+                        "Statement" : [
+                            {
+                                "Effect" : "Allow",
+                                "Action" : [
+                                    "logs:*"
+                                ],
+                                "Resource" : "arn:aws:logs:*:*:*"
+                            },
+                            {
+                                "Effect" : "Allow",
+                                "Action" : [
+                                    "dynamodb:Query"
+                                ],
+                                "Resource" : { "Fn::Join" : [ "", ["arn:aws:dynamodb:", {"Ref" : "AWS::Region"} , ":", {"Ref" : "AWS::AccountId"} ,":table/", {"Ref": "AWS::StackName"}, "-SensorData"]]}
+                            }
+                        ]
+                    }
+                } ]
+            }
+        },
+
+        "IoTDDBEventProcessor" : {
+            "Type" : "AWS::Lambda::Function",
+            "Properties" : {
+                "Description" : "IoT DDB Event Processor",
+                "Handler" : { "Ref" : "LambdaDDBEventProcessorHandler" },
+                "MemorySize" : 128,
+                "Role" : {"Fn::GetAtt" : ["IoTEventProcessorExecutionRole", "Arn"] },
+                "Timeout" : 10,
+                "Runtime" : "nodejs",
+                "Code" : {
+                    "S3Bucket" : { "Ref" : "LambdaS3Bucket" },
+                    "S3Key" : { "Ref" : "LambdaDDBEventProcessorS3Key" }
+                }
+            }
+        },
+
+        "IoTS3EventProcessor" : {
+            "Type" : "AWS::Lambda::Function",
+            "Properties" : {
+                "Description" : "IoT S3 Event Processor",
+                "Handler" : { "Ref" : "LambdaS3EventProcessorHandler" },
+                "MemorySize" : 128,
+                "Role" : {"Fn::GetAtt" : ["IoTEventProcessorExecutionRole", "Arn"] },
+                "Timeout" : 10,
+                "Runtime" : "nodejs",
+                "Code" : {
+                    "S3Bucket" : { "Ref" : "LambdaS3Bucket" },
+                    "S3Key" : { "Ref" : "LambdaS3EventProcessorS3Key" }
+                }
+            }
+        },
+
+        "IoTEventProcessorExecutionRole" : {
+            "Type" : "AWS::IAM::Role",
+            "Properties" : {
+                "AssumeRolePolicyDocument" : {
+                    "Version" : "2012-10-17",
+                    "Statement" : [ {
+                        "Effect" : "Allow",
+                        "Principal" : {
+                            "Service" : [ "lambda.amazonaws.com" ]
+                        },
+                        "Action" : [ "sts:AssumeRole" ]
+                    } ]
+                },
+                "Path" : "/",
+                "Policies" : [ {
+                    "PolicyName" : "IoTEventProcessorExecutionPolicy",
+                    "PolicyDocument" : {
+                        "Version" : "2012-10-17",
+                        "Statement" : [
+                            {
+                                "Effect" : "Allow",
+                                "Action" : [
+                                    "logs:*"
+                                ],
+                                "Resource" : "arn:aws:logs:*:*:*"
+                            },
+                            {
+                                "Effect" : "Allow",
+                                "Action" : [
+                                    "cloudwatch:PutMetricData"
+                                ],
+                                "Resource" : "*"
+                            },
+                            {
+                                "Effect": "Allow",
+                                "Action": [
+                                    "s3:PutObject"
+                                ],
+                                "Resource": { "Fn::Join" : [ "", [ "arn:aws:s3:::", {"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref" : "AWS::AccountId"} , "/*" ]] }
+                            },
+                            {
+                                "Effect" : "Allow",
+                                "Action" : [
+                                    "dynamodb:PutItem",
+                                    "dynamodb:Query"
+                                ],
+                                "Resource" : { "Fn::Join" : [ "", ["arn:aws:dynamodb:", {"Ref" : "AWS::Region"} , ":", {"Ref" : "AWS::AccountId"} ,":table/", {"Ref": "AWS::StackName"}, "-SensorData"]]}
+                            }
+                        ]
+                    }
+                } ],
+                "ManagedPolicyArns" : ["arn:aws:iam::aws:policy/service-role/AWSLambdaKinesisExecutionRole"]
+            }
+        },
+
+        "IoTMapLambdaEventSource" : {
+            "Type" : "AWS::Lambda::Function",
+            "Properties" : {
+                "Description" : "Custom resource Lambda function to map Kinesis stream to Lambda function.",
+                "Handler" : "index.handler",
+                "MemorySize" : 128,
+                "Role" : {"Fn::GetAtt" : ["IoTMapEventSourceExecutionRole", "Arn"] },
+                "Timeout" : 20,
+                "Runtime" : "nodejs",
+                "Code" : {
+                    "ZipFile": {"Fn::Join" : ["\n", [
+                        "var aws = require('aws-sdk');",
+                        "var response = require('cfn-response');",
+                        "exports.handler = function(event, context) {",
+                        "    if (event.RequestType == 'Delete') {",
+                        "        response.send(event, context, response.SUCCESS);",
+                        "        return;",
+                        "    }",
+                        "    var responseStatus = response.FAILED;",
+                        "    var responseData = {};",
+                        "    var lambda = new aws.Lambda({region: event.ResourceProperties.Region});",
+                        "    var params = {",
+                        "        EventSourceArn: event.ResourceProperties.StreamArn,",
+                        "        FunctionName: event.ResourceProperties.LambdaFx,",
+                        "        StartingPosition: 'TRIM_HORIZON',",
+                        "        Enabled: true",
+                        "    };",
+                        "    lambda.createEventSourceMapping(params, function(err, data) {",
+                        "        if (err) {",
+                        "            responseData = {Error: 'Create Event Source Mapping call failed'};",
+                        "        }",
+                        "        else {",
+                        "            responseStatus = response.SUCCESS;",
+                        "            responseData = { 'Result' : data };",
+                        "        }",
+                        "        response.send(event, context, responseStatus, responseData);",
+                        "    });",
+                        "};"
+                    ]]}
+                }
+            }
+        },
+
+        "IoTMapEventSourceExecutionRole" : {
+            "Type" : "AWS::IAM::Role",
+            "Properties" : {
+                "AssumeRolePolicyDocument" : {
+                    "Version" : "2012-10-17",
+                    "Statement" : [ {
+                        "Effect" : "Allow",
+                        "Principal" : {
+                            "Service" : [ "lambda.amazonaws.com" ]
+                        },
+                        "Action" : [ "sts:AssumeRole" ]
+                    } ]
+                },
+                "Path" : "/",
+                "Policies" : [ {
+                    "PolicyName" : "IoTMapEventSourceExecutionPolicy",
+                    "PolicyDocument" : {
+                        "Version" : "2012-10-17",
+                        "Statement" : [
+                            {
+                                "Effect" : "Allow",
+                                "Action" : [
+                                    "lambda:CreateEventSourceMapping"
+                                ],
+                                "Resource" : "*"
+                            },
+                            {
+                                "Effect" : "Allow",
+                                "Action" : [
+                                    "logs:*"
+                                ],
+                                "Resource" : "arn:aws:logs:*:*:*"
+                            }
+                        ]
+                    }
+                } ]
+            }
+        },
+
+        "IoTMapEventSourceDDBEventProcessor": {
+            "Type": "Custom::LambdaEventSourceMapping",
+            "Properties": {
+                "ServiceToken": {"Fn::GetAtt": ["IoTMapLambdaEventSource", "Arn"]},
+                "Region": {"Ref": "AWS::Region"},
+                "LambdaFx": {"Ref": "IoTDDBEventProcessor"},
+                "StreamArn": {
+                    "Fn::Join" : [ "", ["arn:aws:kinesis:", {"Ref" : "AWS::Region"} , ":", {"Ref" : "AWS::AccountId"}, ":stream/", {"Ref" : "IoTEventStream"}]]
+                }
+            }
+        },
+
+        "IoTMapEventSourceS3EventProcessor": {
+            "Type": "Custom::LambdaEventSourceMapping",
+            "Properties": {
+                "ServiceToken": {"Fn::GetAtt": ["IoTMapLambdaEventSource", "Arn"]},
+                "Region": {"Ref": "AWS::Region"},
+                "LambdaFx": {"Ref": "IoTS3EventProcessor"},
+                "StreamArn": {
+                    "Fn::Join" : [ "", ["arn:aws:kinesis:", {"Ref" : "AWS::Region"} , ":", {"Ref" : "AWS::AccountId"}, ":stream/", {"Ref" : "IoTEventStream"}]]
+                }
+            }
+        },
+
+        "SensorDataTable" : {
+            "Type" : "AWS::DynamoDB::Table",
+            "Properties" : {
+                "AttributeDefinitions" : [
+                    {
+                        "AttributeName" : "SensorId",
+                        "AttributeType" : "S"
+                    },
+                    {
+                        "AttributeName" : "Timestamp",
+                        "AttributeType" : "S"
+                    }
+                ],
+                "KeySchema" : [
+                    {
+                        "AttributeName" : "SensorId",
+                        "KeyType" : "HASH"
+                    },
+                    {
+                        "AttributeName" : "Timestamp",
+                        "KeyType" : "RANGE"
+                    }
+                ],
+                "ProvisionedThroughput" : {
+                    "ReadCapacityUnits" : "1",
+                    "WriteCapacityUnits" : "1"
+                },
+                "TableName" : {"Fn::Join": [ "", [{"Ref": "AWS::StackName"}, "-SensorData"]]}
+            }
+        }
+    },
+
+    "Outputs" : {
+        "AccessKeyId" : {
+            "Value" : { "Ref" : "ClientKeys" },
+            "Description" : "AWS Access Key Id of IoT client user"
+        },
+        "SecretAccessKey" : {
+            "Value" : { "Fn::GetAtt" : ["ClientKeys", "SecretAccessKey"]},
+            "Description" : "AWS Secret Key of IoT client user"
+        },
+        "LambdaAPIFunction" : {
+            "Value" : { "Ref" : "IoTAPI" },
+            "Description" : "Name of Lambda Function that implements the IoT API"
+        },
+        "KinesisStream" : {
+            "Value" : { "Ref" : "IoTEventStream" },
+            "Description" : "The Kinesis stream used for ingestion."
+        },
+        "Region" : {
+            "Value" : { "Ref" : "AWS::Region" },
+            "Description" : "The region this template was launched in."
+        },
+        "ArchiveBucket" : {
+            "Value" : { "Ref" : "IotArchiveS3Bucket"},
+            "Description" : "S3 bucket that events will be archived in."
+        },
+        "SensorDataTable" : {
+            "Value" : { "Ref" : "SensorDataTable" },
+            "Description" : "DynamoDB table that events will be stored in."
+        }
+    }
+}

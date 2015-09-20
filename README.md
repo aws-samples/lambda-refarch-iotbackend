@@ -1,6 +1,5 @@
 
 # AWS Lambda Reference Architecture:  IoT Backend
---------
 
 AWS Lambda Reference Architecture for creating an IoT Backend. The architecture described in this [diagram]() can be created with a CloudFormation
 template.
@@ -56,7 +55,7 @@ the S3 bucket, it must only contain lowercase letters. Please use
 lowercase letters when entering the stack name.
 
 Step 1 – Create a CloudFormation Stack with [the
-template](https://lambda-iot-ref-arch.s3.amazonaws.com/lambda_iot_ref_arch.template)
+template](https://s3.amazonaws.com/awslambda-reference-architectures/iot-backend/lambda_iot_backend.template)
 using a lowercase name for the stack.
 
 Step 2 – Open the testpage.html file in a text editor and insert the
