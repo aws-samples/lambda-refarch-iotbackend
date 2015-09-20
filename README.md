@@ -43,6 +43,12 @@ In addition, the CloudFormation template uses a Lambda function as a
 CloudFormation custom resource to create map the Kinesis stream as an
 input event source to Lambda Function 1 and 2.
 
+## Test HTML Page
+
+The services configured by the CloudFormation template can be tested with the HTML page testpage.html, which acts in the same way as a simple device. It can submit events to the Kinesis stream and make synchronous calls against Lambda Function 3 to retrieve event data from DynamoDB.
+
+In a production scenario it would be the devices or device gateways that make the calls against the AWS services.
+
 ## Instructions
 
 **Important:** As the CloudFormation stack name is used in the name of
@@ -59,7 +65,7 @@ CloudFormation template once it’s created. Save the file once the
 configuration has been changed.
 
 Step 3 – Open the testpage.html in a web browser and try submitting a
-value for a sensor ID using the Update button. You can input any values
+value for a sensor ID using the Submit button. You can input any values
 you like into the text fields.
 
 Step 4 – View the contents of the S3 bucket, which will have one object.
