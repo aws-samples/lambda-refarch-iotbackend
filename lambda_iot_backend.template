@@ -12,17 +12,17 @@
         },
         "LambdaAPIS3Key" : {
             "Type" : "String",
-            "Default" : "/iot-backend/iot_api.zip",
+            "Default" : "iot-backend/iot_api.zip",
             "Description" : "Name of S3 key for Zip with IoT API Lambda function package."
         },
         "LambdaDDBEventProcessorS3Key" : {
             "Type" : "String",
-            "Default" : "/iot-backend/iot_ddb_cw_eventprocessor.zip",
+            "Default" : "iot-backend/iot_ddb_cw_eventprocessor.zip",
             "Description" : "Name of S3 key for Zip with IoT DynamoDB and CloudWatch Event Processor Lambda function package."
         },
         "LambdaS3EventProcessorS3Key" : {
             "Type" : "String",
-            "Default" : "/iot-backend/iot_s3_eventprocessor.zip",
+            "Default" : "iot-backend/iot_s3_eventprocessor.zip",
             "Description" : "Name of S3 key for Zip with IoT S3 Event Processor Lambda function package."
         },
         "LambdaAPIHandler" : {
