@@ -1,7 +1,7 @@
 
 # AWS Lambda Reference Architecture:  IoT Backend
 
-AWS Lambda Reference Architecture for creating an IoT Backend. The architecture described in this [diagram]() can be created with a CloudFormation
+AWS Lambda Reference Architecture for creating an IoT Backend. The architecture described in this [diagram](https://s3.amazonaws.com/awslambda-reference-architectures/iot-backend/lambda-refarch-iotbackend.pdf) can be created with a CloudFormation
 template.
 
 [The
