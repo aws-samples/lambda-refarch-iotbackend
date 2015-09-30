@@ -83,3 +83,7 @@ To remove all created resources, delete the CloudFormation stack.
 
 **Note:** Deletion of the S3 bucket will fail unless all files in the
 bucket are removed before the stack is deleted.
+
+## License
+
+This reference architecture sample is licensed under Apache 2.0.
