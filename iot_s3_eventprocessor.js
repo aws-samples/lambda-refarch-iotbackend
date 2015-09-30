@@ -18,26 +18,24 @@ exports.handler = function(event, context) {
 
         console.log('Decoded payload:', payload);
 
-        body = body + (index==0?"":",\n") + payload;
+        body = body + (index == 0 ? "" : ",\n") + payload;
     });
 
     body = body + "\n]}";
 
     var params = {
-        Bucket : s3Bucket,
-        Key : s3Key,
-        Body : body
+        Bucket: s3Bucket,
+        Key: s3Key,
+        Body: body
     };
 
     s3.putObject(params, function(err, data) {
         if (err) {
             console.log(err, err.stack); // an error occurred
             context.fail(err);
-        }
-        else {
+        } else {
             console.log(data);           // successful response
             context.succeed();
         }
     });
-
 };

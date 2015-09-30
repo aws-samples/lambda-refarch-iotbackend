@@ -8,61 +8,60 @@
     <body>
         <script>
 
-         function log(text) {
-             document.getElementById('output').value += text
-         }
+        function log(text) {
+            document.getElementById('output').value += text
+        }
 
-         //Configuration values
-         //Use the Outputs from the CloudFormation template to get the configuration values.
+        //Configuration values
+        //Use the Outputs from the CloudFormation template to get the configuration values.
 
-         var accessKeyId = '';       //AccessKeyId
-         var secretAccessKey = '';   //SecretAccessKey
-         var region = '';            //Region
-         var lambdaAPIFunction = ''; //LambdaAPIFunction
-         var kinesisStreamName = ''; //KinesisStream
+        var accessKeyId = '';       //AccessKeyId
+        var secretAccessKey = '';   //SecretAccessKey
+        var region = '';            //Region
+        var lambdaAPIFunction = ''; //LambdaAPIFunction
+        var kinesisStreamName = ''; //KinesisStream
 
-         AWS.config.update({accessKeyId: accessKeyId, secretAccessKey: secretAccessKey, region: region});
+        AWS.config.update({accessKeyId: accessKeyId, secretAccessKey: secretAccessKey, region: region});
 
-         var lambda = new AWS.Lambda();
-         var kinesis = new AWS.Kinesis();
+        var lambda = new AWS.Lambda();
+        var kinesis = new AWS.Kinesis();
 
-         function update() {
-             var sensorid = document.getElementById('uSensorId').value
-             var value = document.getElementById('uSensorValue').value
+        function update() {
+            var sensorid = document.getElementById('uSensorId').value
+            var value = document.getElementById('uSensorValue').value
 
-             var params = {
-                 Data: JSON.stringify({sensorid: sensorid, value: value, timestamp: new Date().toISOString()}),
-                 PartitionKey: sensorid,
-                 StreamName: kinesisStreamName
-             };
-             kinesis.putRecord(params, function(err, data) {
-                 if (err) log(err + " " + err.stack); // an error occurred
-                 else     log(JSON.stringify(data));           // successful response
-             });
-         }
+            var params = {
+                Data: JSON.stringify({sensorid: sensorid, value: value, timestamp: new Date().toISOStrin()}),
+                PartitionKey: sensorid,
+                StreamName: kinesisStreamName
+            };
+            kinesis.putRecord(params, function(err, data) {
+                if (err) log(err + " " + err.stack);  // an error occurred
+                else     log(JSON.stringify(data));   // successful response
+            });
+        }
 
-         function query() {
-             var sensorid = document.getElementById('qSensorId').value
+        function query() {
+            var sensorid = document.getElementById('qSensorId').value
 
-             var params = {
-                 FunctionName: lambdaAPIFunction,
-                 Payload: '{"operation": "query", "sensorid": "' + sensorid + '"}'
-             };
+            var params = {
+                FunctionName: lambdaAPIFunction,
+                Payload: '{"operation": "query", "sensorid": "' + sensorid + '"}'
+            };
 
-             lambda.invoke(params, function(err, data) {
-                 log("Data submitted: " + params.Payload + "\n");
-                 if (err) {
-                     log(JSON.stringify(err, null, '\t'));
-                 } else {
-                     log(data.Payload + "\n");
-                     var items = JSON.parse(data.Payload).Items;
-                     for(item of items) {
-                         log(item.Timestamp + "\t" + item.Value + "\n");
-                     }
-                 }
-             });
-         }
-
+            lambda.invoke(params, function(err, data) {
+                log("Data submitted: " + params.Payload + "\n");
+                if (err) {
+                    log(JSON.stringify(err, null, '\t'));
+                } else {
+                    log(data.Payload + "\n");
+                    var items = JSON.parse(data.Payload).Items;
+                    for (item of items) {
+                        log(item.Timestamp + "\t" + item.Value + "\n");
+                    }
+                }
+            });
+        }
         </script>
 
         <h1>IoT Reference Architecture Test Page</h1>
@@ -85,21 +84,24 @@
         sensor from DynamoDB.</p>
 
         <table border="1">
-            <tr><td valign="top">
+            <tr>
+                <td valign="top">
 
-                Sensor ID:<br>
-                <input type="text" id="uSensorId"/><br>
-                Value:<br>
-                <input type="text" id="uSensorValue"/><br>
-                <button onclick="update();">Submit</button>
+                    Sensor ID:<br>
+                    <input type="text" id="uSensorId"/><br>
+                    Value:<br>
+                    <input type="text" id="uSensorValue"/><br>
+                    <button onclick="update();">Submit</button>
 
-            </td><td valign="top">
+                </td>
+                <td valign="top">
 
-                Sensor ID:<br>
-                <input type="text" id="qSensorId"/><br>
-                <button onclick="query();">Query</button><br>
+                    Sensor ID:<br>
+                    <input type="text" id="qSensorId"/><br>
+                    <button onclick="query();">Query</button><br>
 
-            </td></tr>
+                </td>
+            </tr>
         </table>
 
         Output:<br>
