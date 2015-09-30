@@ -17,7 +17,7 @@ exports.handler = function(event, context) {
 
         update(JSON.parse(payload), context);
     });
-}
+};
 
 var update = function(event, context) {
 
@@ -29,37 +29,38 @@ var update = function(event, context) {
             SensorId: event.sensorid,
             Timestamp: event.timestamp,
             Value: event.value
-        }};
+        }
+    };
 
     doc.putItem(itemParams, function(err, data) {
-      if (err) {
-        console.log('DDB call failed: ' + err, err.stack);
-        context.error(err);
-      } else {
-
-        //if all is well - also log the metric to CloudWatch
-        logMetric(event, function(err, data) {
-          if (err) {
-            console.log('CW call failed: ' + err, err.stack);
+        if (err) {
+            console.log('DDB call failed: ' + err, err.stack);
             context.error(err);
-          } else {
-            context.succeed();
-          }
-        });
-      }
+        } else {
+
+            //if all is well - also log the metric to CloudWatch
+            logMetric(event, function(err, data) {
+                if (err) {
+                    console.log('CW call failed: ' + err, err.stack);
+                    context.error(err);
+                } else {
+                    context.succeed();
+                }
+            });
+        }
     });
-}
+};
 
 var logMetric = function(event, callback) {
     var params = {
-      MetricData: [{
-          MetricName: 'SensorData',
-          Dimensions: [{ Name: 'SensorId', Value: event.sensorid }],
-          Timestamp: new Date(event.timestamp),
-          Value: event.value
+        MetricData: [{
+            MetricName: 'SensorData',
+            Dimensions: [{ Name: 'SensorId', Value: event.sensorid }],
+            Timestamp: new Date(event.timestamp),
+            Value: event.value
         }],
-      Namespace: 'Sensors'
+        Namespace: 'Sensors'
     };
 
     cw.putMetricData(params, callback);
-}
+};

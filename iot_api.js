@@ -24,11 +24,9 @@ exports.handler = function(event, context) {
         if (err) {
             console.log(err, err.stack); // an error occurred
             context.fail(err);
-        }
-        else {
+        } else {
             console.log(data);           // successful response
             context.succeed(data);
         }
     });
 }
-
