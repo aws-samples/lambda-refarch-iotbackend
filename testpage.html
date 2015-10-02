@@ -27,14 +27,15 @@
         var kinesis = new AWS.Kinesis();
 
         function update() {
-            var sensorid = document.getElementById('uSensorId').value
-            var value = document.getElementById('uSensorValue').value
+            var sensorid = document.getElementById('uSensorId').value;
+            var value = document.getElementById('uSensorValue').value;
 
             var params = {
-                Data: JSON.stringify({sensorid: sensorid, value: value, timestamp: new Date().toISOStrin()}),
+                Data: JSON.stringify({sensorid: sensorid, value: value, timestamp: new Date().toISOString()}),
                 PartitionKey: sensorid,
                 StreamName: kinesisStreamName
             };
+
             kinesis.putRecord(params, function(err, data) {
                 if (err) log(err + " " + err.stack);  // an error occurred
                 else     log(JSON.stringify(data));   // successful response
