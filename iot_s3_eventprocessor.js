@@ -4,11 +4,19 @@ var s3 = new AWS.S3();
 exports.handler = function(event, context) {
     console.log(JSON.stringify(event, null, 2));
 
+    if(event.Records.length == 0) {
+        //Nothing to do
+        console.log('Got no records.');
+        context.succeed();
+        return;
+    }
+
+    var firstRecord = event.Records[0];
     var stackName = context.functionName.split("-")[0];
-    var accountId = event.Records[0].eventSourceARN.split(":")[4];
+    var accountId = firstRecord.eventSourceARN.split(":")[4];
     var s3Bucket = stackName + "-eventarchive-" + accountId;
     var date = new Date();
-    var s3Key = date.toISOString().split("T")[0] + "/" + event.Records[0].kinesis.sequenceNumber + ".json";
+    var s3Key = date.toISOString().split("T")[0] + "/" + firstRecord.kinesis.sequenceNumber + ".json";
 
     var body = "{ \"Records\" : [\n";
 
