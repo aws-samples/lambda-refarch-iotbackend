@@ -1,0 +1,4 @@
+AWS Lambda Reference Architecture:  IoT Backend
+lambda-refarch-iotbackend
+Copyright 2015 Amazon.com, Inc. or its affiliates. 
+All Rights Reserved. 
