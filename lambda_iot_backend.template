@@ -233,107 +233,23 @@
             }
         },
 
-        "IoTMapLambdaEventSource" : {
-            "Type" : "AWS::Lambda::Function",
-            "Properties" : {
-                "Description" : "Custom resource Lambda function to map Kinesis stream to Lambda function.",
-                "Handler" : "index.handler",
-                "MemorySize" : 128,
-                "Role" : {"Fn::GetAtt" : ["IoTMapEventSourceExecutionRole", "Arn"] },
-                "Timeout" : 20,
-                "Runtime" : "nodejs",
-                "Code" : {
-                    "ZipFile": {"Fn::Join" : ["\n", [
-                        "var aws = require('aws-sdk');",
-                        "var response = require('cfn-response');",
-                        "exports.handler = function(event, context) {",
-                        "    if (event.RequestType == 'Delete') {",
-                        "        response.send(event, context, response.SUCCESS);",
-                        "        return;",
-                        "    }",
-                        "    var responseStatus = response.FAILED;",
-                        "    var responseData = {};",
-                        "    var lambda = new aws.Lambda({region: event.ResourceProperties.Region});",
-                        "    var params = {",
-                        "        EventSourceArn: event.ResourceProperties.StreamArn,",
-                        "        FunctionName: event.ResourceProperties.LambdaFx,",
-                        "        StartingPosition: 'TRIM_HORIZON',",
-                        "        Enabled: true",
-                        "    };",
-                        "    lambda.createEventSourceMapping(params, function(err, data) {",
-                        "        if (err) {",
-                        "            responseData = {Error: 'Create Event Source Mapping call failed'};",
-                        "        }",
-                        "        else {",
-                        "            responseStatus = response.SUCCESS;",
-                        "            responseData = { 'Result' : data };",
-                        "        }",
-                        "        response.send(event, context, responseStatus, responseData);",
-                        "    });",
-                        "};"
-                    ]]}
-                }
-            }
-        },
-
-        "IoTMapEventSourceExecutionRole" : {
-            "Type" : "AWS::IAM::Role",
-            "Properties" : {
-                "AssumeRolePolicyDocument" : {
-                    "Version" : "2012-10-17",
-                    "Statement" : [ {
-                        "Effect" : "Allow",
-                        "Principal" : {
-                            "Service" : [ "lambda.amazonaws.com" ]
-                        },
-                        "Action" : [ "sts:AssumeRole" ]
-                    } ]
-                },
-                "Path" : "/",
-                "Policies" : [ {
-                    "PolicyName" : "IoTMapEventSourceExecutionPolicy",
-                    "PolicyDocument" : {
-                        "Version" : "2012-10-17",
-                        "Statement" : [
-                            {
-                                "Effect" : "Allow",
-                                "Action" : [
-                                    "lambda:CreateEventSourceMapping"
-                                ],
-                                "Resource" : "*"
-                            },
-                            {
-                                "Effect" : "Allow",
-                                "Action" : [
-                                    "logs:*"
-                                ],
-                                "Resource" : "arn:aws:logs:*:*:*"
-                            }
-                        ]
-                    }
-                } ]
-            }
-        },
-
         "IoTMapEventSourceDDBEventProcessor": {
-            "Type": "Custom::LambdaEventSourceMapping",
+            "Type": "AWS::Lambda::EventSourceMapping",
             "Properties": {
-                "ServiceToken": {"Fn::GetAtt": ["IoTMapLambdaEventSource", "Arn"]},
-                "Region": {"Ref": "AWS::Region"},
-                "LambdaFx": {"Ref": "IoTDDBEventProcessor"},
-                "StreamArn": {
+                "FunctionName": {"Ref": "IoTDDBEventProcessor"},
+                "StartingPosition": "TRIM_HORIZON",
+                "EventSourceArn": {
                     "Fn::Join" : [ "", ["arn:aws:kinesis:", {"Ref" : "AWS::Region"} , ":", {"Ref" : "AWS::AccountId"}, ":stream/", {"Ref" : "IoTEventStream"}]]
                 }
             }
         },
 
         "IoTMapEventSourceS3EventProcessor": {
-            "Type": "Custom::LambdaEventSourceMapping",
+            "Type": "AWS::Lambda::EventSourceMapping",
             "Properties": {
-                "ServiceToken": {"Fn::GetAtt": ["IoTMapLambdaEventSource", "Arn"]},
-                "Region": {"Ref": "AWS::Region"},
-                "LambdaFx": {"Ref": "IoTS3EventProcessor"},
-                "StreamArn": {
+                "FunctionName": {"Ref": "IoTS3EventProcessor"},
+                "StartingPosition": "TRIM_HORIZON",
+                "EventSourceArn": {
                     "Fn::Join" : [ "", ["arn:aws:kinesis:", {"Ref" : "AWS::Region"} , ":", {"Ref" : "AWS::AccountId"}, ":stream/", {"Ref" : "IoTEventStream"}]]
                 }
             }
