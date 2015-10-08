@@ -238,6 +238,7 @@
             "Properties": {
                 "FunctionName": {"Ref": "IoTDDBEventProcessor"},
                 "StartingPosition": "TRIM_HORIZON",
+                "BatchSize": 25,
                 "EventSourceArn": {
                     "Fn::Join" : [ "", ["arn:aws:kinesis:", {"Ref" : "AWS::Region"} , ":", {"Ref" : "AWS::AccountId"}, ":stream/", {"Ref" : "IoTEventStream"}]]
                 }
