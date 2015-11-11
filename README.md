@@ -51,9 +51,9 @@ In a production scenario it would be the devices or device gateways that make th
 
 **Important:** As the CloudFormation stack name is used in the name of the S3 bucket, it must only contain lowercase letters. Please use lowercase letters when entering the stack name. The provided CloudFormation template retreives its Lambda code from a bucket in the us-east-1 region. To launch this sample in another region, please modify the template and upload the Lambda code to a bucket in that region. 
 
-Step 1 – Create a CloudFormation Stack with [the
-template](https://s3.amazonaws.com/awslambda-reference-architectures/iot-backend/lambda_iot_backend.template)
-using a lowercase name for the stack.
+Step 1 – [Create a CloudFormation Stack with the
+template](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=lambdaiot&templateURL=https://s3.amazonaws.com/awslambda-reference-architectures/iot-backend/lambda_iot_backend.template)
+using a lowercase name for the stack. The template and Lambda functions are prepared to run in US East 1 - but can be used in other regions if you package and place the Lambda functions in the S3 in that region and change the bucket name in the parameters.
 
 Step 2 – Open the testpage.html file in a text editor and insert the
 configuration parameters which you can get from the Outputs tab of the
