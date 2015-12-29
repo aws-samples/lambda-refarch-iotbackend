@@ -1,0 +1,7 @@
+#!/bin/bash
+
+#BUCKET=awslambda-reference-architectures
+BUCKET=deployments-mikedeck
+aws s3 cp --acl public-read iot_api.zip s3://$BUCKET/iot-backend/iot_api.zip
+aws s3 cp --acl public-read iot_ddb_cw_eventprocessor.zip s3://$BUCKET/iot-backend/iot_ddb_cw_eventprocessor.zip
+aws s3 cp --acl public-read iot_s3_eventprocessor.zip s3://$BUCKET/iot-backend/iot_s3_eventprocessor.zip
