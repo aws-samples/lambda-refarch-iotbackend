@@ -18,11 +18,11 @@
     },
 
     "Resources" : {
-        "ClientUser" : {
+        "TestClientUser" : {
             "Type" : "AWS::IAM::User"
         },
 
-        "ClientPolicy" : {
+        "TestClientPolicy" : {
             "Type" : "AWS::IAM::Policy",
             "Properties" : {
                 "PolicyName" : "IotClientPolicy",
@@ -41,14 +41,14 @@
                         "Resource" : { "Fn::Join" : [ "", ["arn:aws:kinesis:", {"Ref" : "AWS::Region"} , ":", {"Ref" : "AWS::AccountId"}, ":stream/", {"Ref" : "EventStream"}]]}
                     }]
                 },
-                "Users" : [{ "Ref" : "ClientUser" }]
+                "Users" : [{ "Ref" : "TestClientUser" }]
             }
         },
 
-        "ClientKeys" : {
+        "TestClientKeys" : {
             "Type" : "AWS::IAM::AccessKey",
             "Properties" : {
-                "UserName" : { "Ref" : "ClientUser" }
+                "UserName" : { "Ref" : "TestClientUser" }
             }
         },
 
