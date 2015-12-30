@@ -10,7 +10,7 @@ The entire example system can be deployed in us-east-1 using the provided CloudF
 
 Use the following button to launch the template in ue-east-1 in your account:
 
-[![Launch Lambda IoT Backend into North Virginia with CloudFormation](http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/images/cloudformation-launch-stack-button.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=lambda-iot-backend&templateURL=https://s3.amazonaws.com/awslambda-reference-architectures/iot-backend/lambda_iot_backend.template)
+[![Launch Lambda IoT Backend into North Virginia with CloudFormation](http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/images/cloudformation-launch-stack-button.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=lambda-iot-backend&templateURL=https://s3.amazonaws.com/awslambda-reference-architectures/iot-backend/iot-backend.template)
 
 ## Testing
 
