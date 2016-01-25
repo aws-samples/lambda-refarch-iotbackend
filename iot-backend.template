@@ -101,13 +101,6 @@
                         "Version" : "2012-10-17",
                         "Statement" : [
                             {
-                              "Effect": "Allow",
-                              "Action": [
-                                "lambda:GetFunction"
-                              ],
-                              "Resource": "*"
-                            },
-                            {
                                 "Effect" : "Allow",
                                 "Action" : [
                                     "logs:*"
@@ -190,13 +183,6 @@
                     "PolicyDocument" : {
                         "Version" : "2012-10-17",
                         "Statement" : [
-                            {
-                              "Effect": "Allow",
-                              "Action": [
-                                "lambda:GetFunction"
-                              ],
-                              "Resource": "*"
-                            },
                             {
                                 "Effect" : "Allow",
                                 "Action" : [
