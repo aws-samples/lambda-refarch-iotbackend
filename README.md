@@ -74,6 +74,15 @@ The following sections explain all of the resources created by the CloudFormatio
 
 - **ArchiveBucket** - An S3 Bucket for archiving the raw sensor data.
 
+### Configuration
+
+- **ConfigTable** - A DynamoDB table to hold configuration values read by the various Lambda functions. The name of this table, "IoTRefArchConfig", is hard coded into each function's code and cannot be modified without updating the code as well.
+
+- **ConfigHelperStack** - A sub-stack that creates a custom resource for writing entries to the `ConfigTable`. This stack creates a Lambda function and execution role that grants UpdateItem permission on the `ConfigTable`.
+
+- **SensorDataTableConfig** - A configuration entry that identifies the `SensorDataTable` name.
+
+- **ArchiveBucketConfig** - A configuration entry that identifies the `ArchiveBucket` name.
 
 ## License
 
