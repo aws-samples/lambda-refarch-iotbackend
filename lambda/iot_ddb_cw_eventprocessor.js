@@ -17,39 +17,25 @@ console.log('Loading function');
 
 var AWS = require('aws-sdk');
 
-var lambda = new AWS.Lambda();
 var cw = new AWS.CloudWatch();
 var doc = new AWS.DynamoDB.DocumentClient();
 
-var sensorDataTable;
+var config;
 
 exports.handler = function(event, context) {
-  if (sensorDataTable) {
+  if (config) {
     handleEvent(event, context);
   } else {
-    lambda.getFunction({
-      "FunctionName": context.functionName,
-      "Qualifier": context.functionVersion
-    }, function(err, data) {
+    var params = {
+      TableName: 'IoTRefArchConfig',
+      Key: { Environment: 'demo' }
+    };
+    doc.get(params, function(err, data) {
       if (err) {
-        console.log("Error fetching function details: " + err);
+        console.log(err, err.stack);
         context.fail(err);
       } else {
-        var description = data.Configuration.Description;
-        if (description) {
-          try {
-            var config = JSON.parse(description);
-            if(config.sensorDataTable) {
-              sensorDataTable = config.sensorDataTable;
-            } else {
-              console.log("Error: no sensorDataTable defined in configuration.");
-              context.fail("Lambda configuration error");
-            }
-          } catch (e) {
-            console.log("Error deserializing description");
-            context.fail(e);
-          }
-        }
+        config = data.Item;
         handleEvent(event, context);
       }
     });
@@ -99,7 +85,7 @@ function handleEvent(event, context) {
             });
     });
 
-    ddbParams.RequestItems[sensorDataTable] = putItems;
+    ddbParams.RequestItems[config.SensorDataTable] = putItems;
 
     doc.batchWrite(ddbParams, function(err, data) {
         if (err) {

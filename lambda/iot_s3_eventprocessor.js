@@ -13,42 +13,29 @@ limitations under the License. */
 
 var AWS = require('aws-sdk');
 
-var lambda = new AWS.Lambda();
 var s3 = new AWS.S3();
+var doc = new AWS.DynamoDB.DocumentClient();
 
-var s3Bucket;
+var config;
 
 exports.handler = function(event, context) {
-  if (s3Bucket) {
-    handleEvent(event, context);
-  } else {
-    lambda.getFunction({
-      "FunctionName": context.functionName,
-      "Qualifier": context.functionVersion
-    }, function(err, data) {
-      if (err) {
-        console.log("Error fetching function details: " + err);
-        context.fail(err);
-      } else {
-        var description = data.Configuration.Description;
-        if (description) {
-          try {
-            var config = JSON.parse(description);
-            if(config.archiveBucket) {
-              s3Bucket = config.archiveBucket;
-            } else {
-              console.log("Error: no archiveBucket defined in configuration.");
-              context.fail("Lambda configuration error");
-            }
-          } catch (e) {
-            console.log("Error deserializing description");
-            context.fail(e);
-          }
+    if (config) {
+      handleEvent(event, context);
+    } else {
+      var params = {
+        TableName: 'IoTRefArchConfig',
+        Key: { Environment: 'demo' }
+      };
+      doc.get(params, function(err, data) {
+        if (err) {
+          console.log(err, err.stack);
+          context.fail(err);
+        } else {
+          config = data.Item;
+          handleEvent(event, context);
         }
-        handleEvent(event, context);
-      }
-    });
-  }
+      });
+    }
 };
 
 function handleEvent(event, context) {
@@ -62,8 +49,6 @@ function handleEvent(event, context) {
     }
 
     var firstRecord = event.Records[0];
-    var stackName = context.functionName.split("-")[0];
-    var accountId = firstRecord.eventSourceARN.split(":")[4];
     var date = new Date();
     var s3Key = date.toISOString().split("T")[0] + "/" + firstRecord.kinesis.sequenceNumber + ".json";
 
@@ -75,13 +60,13 @@ function handleEvent(event, context) {
 
         console.log('Decoded payload:', payload);
 
-        body = body + (index == 0 ? "" : ",\n") + payload;
+        body = body + (index === 0 ? "" : ",\n") + payload;
     });
 
     body = body + "\n]}";
 
     var params = {
-        Bucket: s3Bucket,
+        Bucket: config.ArchiveBucket,
         Key: s3Key,
         Body: body
     };
