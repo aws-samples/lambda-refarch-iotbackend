@@ -73,7 +73,7 @@
                 "MemorySize" : 128,
                 "Role" : {"Fn::GetAtt" : ["ApiExecutionRole", "Arn"] },
                 "Timeout" : 10,
-                "Runtime" : "nodejs",
+                "Runtime" : "nodejs6.10",
                 "Code" : {
                     "S3Bucket" : { "Ref" : "CodeBucket" },
                     "S3Key" : {"Fn::Join": ["/", [{"Ref": "CodeKeyPrefix"}, "iot_api.zip"]]}
@@ -137,7 +137,7 @@
                 "MemorySize" : 128,
                 "Role" : {"Fn::GetAtt" : ["DdbCloudWatchProcessorRole", "Arn"] },
                 "Timeout" : 10,
-                "Runtime" : "nodejs",
+                "Runtime" : "nodejs6.10",
                 "Code" : {
                     "S3Bucket" : { "Ref" : "CodeBucket" },
                     "S3Key" : {"Fn::Join": ["/", [{"Ref": "CodeKeyPrefix"}, "iot_ddb_cw_eventprocessor.zip"]]}
@@ -155,7 +155,7 @@
                 "MemorySize" : 128,
                 "Role" : {"Fn::GetAtt" : ["EventArchiverRole", "Arn"] },
                 "Timeout" : 10,
-                "Runtime" : "nodejs",
+                "Runtime" : "nodejs6.10",
                 "Code" : {
                     "S3Bucket" : { "Ref" : "CodeBucket" },
                     "S3Key" : {"Fn::Join": ["/", [{"Ref": "CodeKeyPrefix"}, "iot_s3_eventprocessor.zip"]]}
