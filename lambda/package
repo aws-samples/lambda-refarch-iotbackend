@@ -1,5 +1,0 @@
-#!/bin/bash
-
-zip iot_api.zip iot_api.js
-zip iot_ddb_cw_eventprocessor.zip iot_ddb_cw_eventprocessor.js
-zip iot_s3_eventprocessor.zip iot_s3_eventprocessor.js
