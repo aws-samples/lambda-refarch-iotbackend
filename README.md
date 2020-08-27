@@ -9,7 +9,7 @@ In this demo humidity sensor application, IoT soil-mosture sensors deliver messa
 
 ## Architectural Diagram
 
-![Reference Architecture - IoT Backend](https://code.amazon.com/packages/ServerlessIoTBackendRefresh/blobs/mainline/--/iot-serverless-backend-architecture.png?download=1)
+![Reference Architecture - IoT Backend](./iot-serverless-backend-architecture.png)
 
 ## Application Components
 
