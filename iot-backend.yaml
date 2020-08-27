@@ -1,0 +1,270 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: 'AWS::Serverless-2016-10-31'
+Description: Creating AWS IoT Serverless Backend Resources.
+
+Parameters:
+  SNSEmail:
+    Type: String
+    Default: 'test@amazon.lu'
+  InstanceType:
+    Description: Divive simulator EC2 instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+    ConstraintDescription: must be a valid EC2 instance type.
+  SSMLocation:
+    Description: The IP address range that can be used to SSM to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+    
+Mappings:
+ RegionMap:
+  us-east-1:
+   AMI: "ami-00068cd7555f543d5"
+  us-east-2:
+   AMI: "ami-0dacb0c129b49f529"
+  us-west-1:
+   AMI: "ami-0b2d8d1abb76a53d8"
+  us-west-2:
+   AMI: "ami-0c5204531f799e0c6" 
+  eu-west-1:
+   AMI: "ami-01f14919ba412de34"
+
+Resources:
+
+  ECSSMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole 
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'iot:*'
+                Resource: '*'
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+      Description: "IAM Role for IoT Simulator instances"
+  
+  ECInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - !Ref 'ECSSMRole'
+      
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: ECSSMRole
+    Properties:
+      InstanceType:
+        Ref: InstanceType
+      SecurityGroups:
+      - Ref: InstanceSecurityGroup
+      IamInstanceProfile: !Ref ECInstanceProfile
+      Tags:
+        - Key: "Name"
+          Value: "EC2 Instance for IoT Simulator"
+      ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", AMI]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y aws-cli
+          yum update -y aws-cfn-bootstrap
+          yum install -y python37
+          cd ~
+          yum install -y git
+          git clone https://github.com/aws/aws-iot-device-sdk-python.git
+          cd aws-iot-device-sdk-python
+          python3 setup.py install
+          cd ~
+          aws s3 cp s3://awslambda-reference-architectures/iot-backend/v2/iot-backend.sh .
+          aws s3 cp s3://awslambda-reference-architectures/iot-backend/v2/environment.zip .
+          chmod 744 iot-backend.sh
+          cp -r * /home/ec2-user
+          cd /home/ec2-user
+          unzip environment.zip
+          aws configure set region ${AWS::Region}
+          sh iot-backend.sh
+          mv serverless-iot-backend.cert.pem environment/certs/certificate.pem.crt 
+          mv serverless-iot-backend.private.key environment/certs/private.pem.key 
+          cd environment
+          IOT_ENDPOINT=$(aws iot describe-endpoint --endpoint-type iot:Data-ATS)
+          python3 app.py "$IOT_ENDPOINT"
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSM access via port 22
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp:
+          Ref: SSMLocation
+  
+  IoTPolicy:
+    Type: AWS::IoT::Policy
+    Properties:
+      PolicyName: 'serverless-iot-backend-policy'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - 
+            Sid: ManageConnections
+            Effect: Allow
+            Action:
+              - iot:*
+            Resource: '*'
+
+  IoTThing:
+    Type: AWS::IoT::Thing
+    Properties:
+      ThingName: 'serverless-iot-backend-thing'
+
+  IoTTopicRule: 
+    Type: AWS::IoT::TopicRule
+    Properties: 
+      RuleName: 'SoilHumidityTestRule'
+      TopicRulePayload: 
+        RuleDisabled: false
+        Sql: Select * FROM 'device/+/devicePayload'
+        Actions: 
+          - 
+            S3: 
+              BucketName: 
+                Ref: RuleFilterBucket
+              RoleArn: !GetAtt IoTRuleRole.Arn
+              Key: '${topic()}/${timestamp()}'
+
+  RuleFilterBucket: 
+    Type: AWS::S3::Bucket
+
+  IoTRuleRole: 
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: "iot.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - Ref: LambdaPublisherS3PutPolicy
+  
+  LambdaPublisherS3PutPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: LambdaPublisherS3PutPolicy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Action:
+              - s3:PutObject
+            Resource: 
+              - !Sub arn:aws:s3:::${RuleFilterBucket}/*
+              - !Sub arn:aws:s3:::${RuleFilterBucket}
+
+  AlertSNSTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      Subscription:
+        - Endpoint: !Ref SNSEmail
+          Protocol: email
+
+  IoTFunction:
+    Type: 'AWS::Serverless::Function'
+    DependsOn: AlertSNSTopic
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      CodeUri: 's3://awslambda-reference-architectures/iot-backend/v2/lambda_function.zip'
+      Timeout: 10
+      Runtime: python3.7
+      Events:
+        PutImageEvent:
+          Type: IoTRule
+          Properties:
+            Sql: Select * FROM 'device/+/devicePayload' where humidity < 35
+      Environment:
+        Variables:
+          alert_sns: !Ref AlertSNSTopic
+
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: cwlogs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 'sns:*'
+                Resource: '*'
+              - Effect: Allow
+                Action: 'iot:*'
+                Resource: '*'
+              - Effect: Allow
+                Action: 's3:*'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - cloudwatch:*
+                Resource: "*"   
+
+Outputs:
+  InstanceId:
+    Description: InstanceId of the newly created EC2 instance
+    Value:
+      Ref: EC2Instance
+  AZ:
+    Description: Availability Zone of the newly created EC2 instance
+    Value:
+      Fn::GetAtt:
+      - EC2Instance
+      - AvailabilityZone
+  PublicDNS:
+    Description: Public DNSName of the newly created EC2 instance
+    Value:
+      Fn::GetAtt:
+      - EC2Instance
+      - PublicDnsName
+  PublicIP:
+    Description: Public IP address of the newly created EC2 instance
+    Value:
+      Fn::GetAtt:
+      - EC2Instance
+      - PublicIp
