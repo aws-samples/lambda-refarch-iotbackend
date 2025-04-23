@@ -7,7 +7,7 @@ Parameters:
     Type: String
     Default: 'test@amazon.lu'
   InstanceType:
-    Description: Divive simulator EC2 instance type
+    Description: Device simulator EC2 instance type
     Type: String
     Default: t2.micro
     AllowedValues:
