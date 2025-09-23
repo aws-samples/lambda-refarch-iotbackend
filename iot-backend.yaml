@@ -1,54 +1,58 @@
 AWSTemplateFormatVersion: 2010-09-09
-Transform: 'AWS::Serverless-2016-10-31'
+Transform: "AWS::Serverless-2016-10-31"
 Description: Creating AWS IoT Serverless Backend Resources.
 
 Parameters:
   SNSEmail:
     Type: String
-    Default: 'test@amazon.lu'
+    Default: "test@amazon.com"
   InstanceType:
-    Description: Divive simulator EC2 instance type
+    Description: Device simulator EC2 instance type
     Type: String
-    Default: t2.micro
+    Default: t3.micro
     AllowedValues:
-    - t2.micro
+      - t3.micro
     ConstraintDescription: must be a valid EC2 instance type.
   SSMLocation:
     Description: The IP address range that can be used to SSM to the EC2 instances
     Type: String
-    MinLength: '9'
-    MaxLength: '18'
+    MinLength: "9"
+    MaxLength: "18"
     Default: 0.0.0.0/0
     AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
     ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
-    
+  AssetsBucket:
+    Type: String
+    Description: S3 bucket name containing the environment.zip file
+    MinLength: "3"
+    MaxLength: "63"
+
 Mappings:
- RegionMap:
-  us-east-1:
-   AMI: "ami-00068cd7555f543d5"
-  us-east-2:
-   AMI: "ami-0dacb0c129b49f529"
-  us-west-1:
-   AMI: "ami-0b2d8d1abb76a53d8"
-  us-west-2:
-   AMI: "ami-0c5204531f799e0c6" 
-  eu-west-1:
-   AMI: "ami-01f14919ba412de34"
+  RegionMap:
+    us-east-1:
+      AMI: "ami-08982f1c5bf93d976"
+    us-east-2:
+      AMI: "ami-0ca4d5db4872d0c28"
+    us-west-1:
+      AMI: "ami-00142eb1747a493d9"
+    us-west-2:
+      AMI: "ami-06a974f9b8a97ecf2"
+    eu-west-1:
+      AMI: "ami-091a906f2e1e40076"
 
 Resources:
-
   ECSSMRole:
     Type: AWS::IAM::Role
     Properties:
       Path: /
       AssumeRolePolicyDocument:
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - ec2.amazonaws.com
-          Action:
-          - sts:AssumeRole 
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Policies:
         - PolicyName: root
           PolicyDocument:
@@ -56,19 +60,23 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - 'iot:*'
-                Resource: '*'
+                  - "iot:*"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                Resource: !Sub "arn:aws:s3:::${AssetsBucket}/*"
       ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
       Description: "IAM Role for IoT Simulator instances"
-  
+
   ECInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Path: /
       Roles:
-      - !Ref 'ECSSMRole'
-      
+        - !Ref "ECSSMRole"
+
   EC2Instance:
     Type: AWS::EC2::Instance
     DependsOn: ECSSMRole
@@ -76,7 +84,7 @@ Resources:
       InstanceType:
         Ref: InstanceType
       SecurityGroups:
-      - Ref: InstanceSecurityGroup
+        - Ref: InstanceSecurityGroup
       IamInstanceProfile: !Ref ECInstanceProfile
       Tags:
         - Key: "Name"
@@ -87,89 +95,127 @@ Resources:
           #!/bin/bash
           yum update -y aws-cli
           yum update -y aws-cfn-bootstrap
-          yum install -y python37
+          yum install -y python3
           cd ~
           yum install -y git
           git clone https://github.com/aws/aws-iot-device-sdk-python.git
           cd aws-iot-device-sdk-python
           python3 setup.py install
           cd ~
-          aws s3 cp s3://awslambda-reference-architectures/iot-backend/v2/iot-backend.sh .
-          aws s3 cp s3://awslambda-reference-architectures/iot-backend/v2/environment.zip .
-          chmod 744 iot-backend.sh
+
+          # Configure AWS CLI region
+          aws configure set region ${AWS::Region}
+
+          # IoT Backend Script Contents (from iot-backend.sh)
+          POLICY_NAME="serverless-iot-backend-policy"
+          THING_NAME="serverless-iot-backend-thing"
+
+          # Creates a 2048-bit RSA key pair and issues an X.509 certificate using the issued public key.
+          echo "Creating the keys and certificate"
+          CERTIFICATE_ARN=$(aws iot create-keys-and-certificate \
+            --set-as-active \
+            --certificate-pem-outfile "serverless-iot-backend.cert.pem" \
+            --public-key-outfile "serverless-iot-backend.public.key" \
+            --private-key-outfile "serverless-iot-backend.private.key" \
+            --region ${AWS::Region} | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["certificateArn"])')
+          echo $CERTIFICATE_ARN
+
+          # Attach aws iot policy to device certificate
+          echo "Attaching certificate to a thing"
+          aws iot attach-thing-principal \
+            --thing-name $THING_NAME \
+            --principal $CERTIFICATE_ARN \
+            --region ${AWS::Region}
+
+          # Attach a policy to a certificate
+          echo "Attaching iot policy to a certificate"
+          aws iot attach-policy \
+            --policy-name $POLICY_NAME \
+            --target $CERTIFICATE_ARN \
+            --region ${AWS::Region}
+
+          # Download environment.zip from S3 bucket parameter
+          aws s3 cp s3://${AssetsBucket}/environment.zip .
+
+          # Copy files to ec2-user and set up environment
           cp -r * /home/ec2-user
           cd /home/ec2-user
+
+          # Unzip environment files
           unzip environment.zip
-          aws configure set region ${AWS::Region}
-          sh iot-backend.sh
+
+          # Create certs directory and move certificates
+          mkdir -p environment/certs
           mv serverless-iot-backend.cert.pem environment/certs/certificate.pem.crt 
-          mv serverless-iot-backend.private.key environment/certs/private.pem.key 
+          mv serverless-iot-backend.private.key environment/certs/private.pem.key
+
+          # Download root CA certificate
+          curl -o environment/certs/root-ca.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem
+
+          # Start the IoT simulator
           cd environment
-          IOT_ENDPOINT=$(aws iot describe-endpoint --endpoint-type iot:Data-ATS)
-          python3 app.py "$IOT_ENDPOINT"
+          IOT_ENDPOINT=$(aws iot describe-endpoint --endpoint-type iot:Data-ATS --region ${AWS::Region})
+          python3 app.py "$IOT_ENDPOINT" &
 
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Enable SSM access via port 22
+      GroupDescription: Security group for IoT simulator EC2 instance
       SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: '22'
-        ToPort: '22'
-        CidrIp:
-          Ref: SSMLocation
-  
+        - IpProtocol: tcp
+          FromPort: "22"
+          ToPort: "22"
+          CidrIp:
+            Ref: SSMLocation
+
   IoTPolicy:
     Type: AWS::IoT::Policy
     Properties:
-      PolicyName: 'serverless-iot-backend-policy'
+      PolicyName: "serverless-iot-backend-policy"
       PolicyDocument:
         Version: 2012-10-17
         Statement:
-          - 
-            Sid: ManageConnections
+          - Sid: ManageConnections
             Effect: Allow
             Action:
               - iot:*
-            Resource: '*'
+            Resource: "*"
 
   IoTThing:
     Type: AWS::IoT::Thing
     Properties:
-      ThingName: 'serverless-iot-backend-thing'
+      ThingName: "serverless-iot-backend-thing"
 
-  IoTTopicRule: 
+  IoTTopicRule:
     Type: AWS::IoT::TopicRule
-    Properties: 
-      RuleName: 'SoilHumidityTestRule'
-      TopicRulePayload: 
+    Properties:
+      RuleName: "SoilHumidityTestRule"
+      TopicRulePayload:
         RuleDisabled: false
         Sql: Select * FROM 'device/+/devicePayload'
-        Actions: 
-          - 
-            S3: 
-              BucketName: 
+        Actions:
+          - S3:
+              BucketName:
                 Ref: RuleFilterBucket
               RoleArn: !GetAtt IoTRuleRole.Arn
-              Key: '${topic()}/${timestamp()}'
+              Key: "${topic()}/${timestamp()}"
 
-  RuleFilterBucket: 
+  RuleFilterBucket:
     Type: AWS::S3::Bucket
 
-  IoTRuleRole: 
+  IoTRuleRole:
     Type: AWS::IAM::Role
-    Properties: 
-      AssumeRolePolicyDocument: 
+    Properties:
+      AssumeRolePolicyDocument:
         Version: 2012-10-17
-        Statement: 
-          - 
-            Effect: "Allow"
-            Principal: 
+        Statement:
+          - Effect: "Allow"
+            Principal:
               Service: "iot.amazonaws.com"
             Action: "sts:AssumeRole"
       ManagedPolicyArns:
         - Ref: LambdaPublisherS3PutPolicy
-  
+
   LambdaPublisherS3PutPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -177,30 +223,48 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          -
-            Effect: "Allow"
+          - Effect: "Allow"
             Action:
               - s3:PutObject
-            Resource: 
+            Resource:
               - !Sub arn:aws:s3:::${RuleFilterBucket}/*
               - !Sub arn:aws:s3:::${RuleFilterBucket}
 
   AlertSNSTopic:
-    Type: 'AWS::SNS::Topic'
+    Type: "AWS::SNS::Topic"
     Properties:
       Subscription:
         - Endpoint: !Ref SNSEmail
           Protocol: email
 
   IoTFunction:
-    Type: 'AWS::Serverless::Function'
+    Type: "AWS::Serverless::Function"
     DependsOn: AlertSNSTopic
     Properties:
-      Handler: lambda_function.lambda_handler
+      Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      CodeUri: 's3://awslambda-reference-architectures/iot-backend/v2/lambda_function.zip'
+      InlineCode: |
+        import boto3
+        import os
+
+        sns = boto3.client('sns')
+        alert_sns = os.environ['alert_sns']
+
+        def lambda_handler(event, context):
+            print(event)
+            device_name = event['name']
+            humidity = event['humidity']
+
+            print("send alert")
+            alert_message = (f"Humidity {humidity} under threshold for device name "
+                             f"{device_name}")
+            sns.publish(TopicArn=alert_sns,
+                        Message=alert_message,
+                        Subject="Attention:Humidity Under Threshold")
+
+            return ''
       Timeout: 10
-      Runtime: python3.7
+      Runtime: python3.12
       Events:
         PutImageEvent:
           Type: IoTRule
@@ -211,7 +275,7 @@ Resources:
           alert_sns: !Ref AlertSNSTopic
 
   LambdaExecutionRole:
-    Type: 'AWS::IAM::Role'
+    Type: "AWS::IAM::Role"
     Properties:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -221,7 +285,7 @@ Resources:
               Service:
                 - lambda.amazonaws.com
             Action:
-              - 'sts:AssumeRole'
+              - "sts:AssumeRole"
       Path: /
       Policies:
         - PolicyName: cwlogs
@@ -229,21 +293,21 @@ Resources:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
-                Action: 'sns:*'
-                Resource: '*'
+                Action: "sns:*"
+                Resource: "*"
               - Effect: Allow
-                Action: 'iot:*'
-                Resource: '*'
+                Action: "iot:*"
+                Resource: "*"
               - Effect: Allow
-                Action: 's3:*'
-                Resource: '*'
+                Action: "s3:*"
+                Resource: "*"
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                   - cloudwatch:*
-                Resource: "*"   
+                Resource: "*"
 
 Outputs:
   InstanceId:
@@ -254,17 +318,21 @@ Outputs:
     Description: Availability Zone of the newly created EC2 instance
     Value:
       Fn::GetAtt:
-      - EC2Instance
-      - AvailabilityZone
+        - EC2Instance
+        - AvailabilityZone
   PublicDNS:
     Description: Public DNSName of the newly created EC2 instance
     Value:
       Fn::GetAtt:
-      - EC2Instance
-      - PublicDnsName
+        - EC2Instance
+        - PublicDnsName
   PublicIP:
     Description: Public IP address of the newly created EC2 instance
     Value:
       Fn::GetAtt:
-      - EC2Instance
-      - PublicIp
+        - EC2Instance
+        - PublicIp
+  RuleFilterBucket:
+    Description: Name of the S3 bucket that stores IoT device data
+    Value:
+      Ref: RuleFilterBucket
